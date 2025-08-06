@@ -5,11 +5,10 @@ import json
 import argparse
 from flask import Flask, jsonify
 
-# Python 3.8+ way to list installed packages
 try:
-    from importlib import metadata  # Python 3.8+
+    from importlib import metadata
 except ImportError:
-    import importlib_metadata as metadata  # fallback
+    import importlib_metadata as metadata
 
 app = Flask(__name__)
 report = {}
@@ -27,9 +26,8 @@ def scan_environment():
     }
 
     # --- Python Info ---
-    py_packages = {}
-    for dist in metadata.distributions():
-        py_packages[dist.metadata['Name'].lower()] = dist.version
+    py_packages = {dist.metadata['Name'].lower(): dist.version
+                   for dist in metadata.distributions()}
 
     python_info = {
         "version": platform.python_version(),
@@ -48,10 +46,7 @@ def scan_environment():
     except Exception:
         javac_version = "javac not found"
 
-    java_info = {
-        "version": java_version,
-        "javac_version": javac_version
-    }
+    java_info = {"version": java_version, "javac_version": javac_version}
 
     # --- Node.js Info ---
     try:
@@ -90,7 +85,6 @@ def scan_environment():
         "conflicts": conflicts
     }
 
-    # Save JSON & HTML reports for local demo (optional)
     with open("envsync_report.json", "w") as f:
         json.dump(report, f, indent=4)
 
@@ -98,12 +92,46 @@ def scan_environment():
 
 @app.route("/api/report")
 def api_report():
-    """Return latest environment scan as JSON"""
     return jsonify(report)
 
+@app.route("/")
+def dashboard():
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>EnvSync Pro Dashboard</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; background:#f4f6f8; margin:0; }}
+            header {{ background:#4CAF50; color:white; padding:20px; text-align:center; font-size:28px; }}
+            .container {{ width:90%; max-width:1200px; margin:30px auto; }}
+            pre {{ background:#f4f4f4; padding:10px; border-radius:5px; overflow-x:auto; }}
+        </style>
+    </head>
+    <body>
+        <header>EnvSync Pro Dashboard (Auto-refresh every 30s)</header>
+        <div class="container">
+            <pre id="json">Loading environment...</pre>
+        </div>
+        <script>
+            async function fetchReport() {{
+                const res = await fetch('/api/report');
+                const data = await res.json();
+                document.getElementById('json').textContent = JSON.stringify(data, null, 2);
+            }}
+            fetchReport();
+            setInterval(fetchReport, 30000);
+        </script>
+    </body>
+    </html>
+    """
+
 def run_dashboard():
-    scan_environment()  # initial scan
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    scan_environment()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EnvSync Pro MVP")
